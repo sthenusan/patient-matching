@@ -1,22 +1,5 @@
 {
-    "ruleRecord": {
-        "rule1" :{
-            "path" : "Patient.name.family",
-            "weight":  1 
-        },
-        "rule2" : {
-            "path" : "Patient.name.given",
-            "weight":  1
-        },
-        "rule3" : {
-            "path" : "Patient.name.suffix",
-            "weight":  1
-        },
-        "rule4" : {
-            "path" : "Patient.name.prefix",
-            "weight":  1
-        }
-    },
-
+    "fhirpaths": ["Patient.name.family", "Patient.gender", "Patient.birthDate", "Patient.language"],
+    "weights" : [1.0,1.0,1.0,1.0],
     "threshold" : 4.0
 }

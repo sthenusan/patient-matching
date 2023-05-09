@@ -1,4 +1,3 @@
-import ballerina/io;
 import wso2healthcare/healthcare.fhir.r4;
 
 # record to store matching result
@@ -38,7 +37,7 @@ public type RulesRecord record {
 # + patientList - List of patients to check match 
 # + ruleTable - fhirpath rules and threshold
 # + return - Returns matching result record
-public function calculateScore(r4:Patient patientOne, r4:Patient[] patientList, RulesRecord ruleTable) returns MatchingResult {
+public isolated function calculateScore(r4:Patient patientOne, r4:Patient[] patientList, RulesRecord ruleTable) returns MatchingResult|error {
 
     float maxScore = 0;
     r4:Patient maxScorePatientTwo = patientList[0];
@@ -52,7 +51,8 @@ public function calculateScore(r4:Patient patientOne, r4:Patient[] patientList, 
                 float x = ((resultMapPatientOne.get("result") == resultMapPatientTwo.get("result")) ? item.weight : 0);
                 score += x;
             } else {
-                io:println("No result found for the given FHIRPath expression in one of the patient: " + fhirPathRule);
+                return createFhirPathError("No result found for the given FHIRPath expression in one of the patient: " ,fhirPathRule);
+                
               
             }
         }
