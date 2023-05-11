@@ -10,79 +10,17 @@
 // associated services.
 
 import ballerina/http;
-import wso2healthcare/healthcare.fhir.r4;
+import ballerinax/health.fhir.r4;
 
 # A service representing a network-accessible API for the Patient-matching evaluation.
 # bound to port `9090`.
 service /fhir on new http:Listener(9090) {
 
-    resource function get patientmatch() returns MatchingResult?|error? {
-        return getPatientMatchingResult(patient1,patientList);
-        
+    resource function post patientmatch(@http:Payload PatientMatchingRequest patientMatchingRequest) returns MatchingResult|error {
+        return getPatientMatchingResult(patientMatchingRequest.newPatient ,patientMatchingRequest.patientList);
     }
 }
-
-r4:Patient[] patientList = [patient2, patient3];
-r4:Patient patient1 = {
-    "resourceType": "Patient",
-    "id": "1",
-    "meta": {
-        "profile": [
-            "http://hl7.org/fhir/StructureDefinition/Patient"
-        ]
-    },
-    "active": true,
-    "name": [
-        {
-            "use": "official",
-            "family": "Fernando",
-            "given": [
-                "Peter"
-            ]
-        }
-    ],
-    "gender": "male",
-    "birthDate": "1974-12-25",
-    "language": "en-US"
+public type PatientMatchingRequest record {
+    r4:Patient newPatient;
+    r4:Patient [] patientList;
 };
-
-r4:Patient patient2 = {
-    "resourceType": "Patient",
-    "id": "123",
-    "active": true,
-    "name": [
-        {
-            "use": "official",
-            "family": "Fernando",
-            "given": [
-                "Peeter"
-            ]
-        }
-    ],
-    "gender": "male",
-    "birthDate": "1974-12-25",
-    "language": "en-US"
-};
-
-r4:Patient patient3 = {
-    "resourceType": "Patient",
-    "id": "1234",
-    "active": true,
-    "name": [
-        {
-            "use": "official",
-            "family": "Chalmer",
-            "given": [
-                "Peter",
-                "James"
-            ]
-        }
-    ],
-    "gender": "male",
-    "birthDate": "1974-12-25",
-    "language": "en-UK"
-
-};
-
-
-
