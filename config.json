@@ -1,5 +1,6 @@
 {
-    "fhirpaths": ["Patient.name.family", "Patient.gender", "Patient.birthDate", "Patient.language"],
+    "fhirpaths": ["Patient.name.family", "Patient.gender", "Patient.birthDate", "Patient.name.given"],
     "weights" : [1.0,1.0,1.0,1.0],
-    "threshold" : 4.0
+    "threshold" : 4.0,
+    "algorithm" : "rule-based"
 }
