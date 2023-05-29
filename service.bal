@@ -10,60 +10,56 @@
 // associated services.
 
 import ballerina/http;
-import ballerinax/health.fhir.r4;
-import ballerina/io;
+import ballerina/io; 
+import ballerinax/health.fhir.r4utils.patientmatching as pm;   
 
+const  DEFAULT_ALGO = "rulebased";
+configurable string algoType = "rulebased";
 # A service representing a network-accessible API for the Patient-matching evaluation.
 # bound to port `9090`.
-service /fhir on new http:Listener(9090) {
 
-    resource function post patientmatch(@http:Payload PatientMatchingRequest patientMatchingRequest) returns MatchingResult|error {
-        PatientMatcher patientMatcher;
+isolated service /patient on new http:Listener(9090) {
 
-        if getAlgoType() is "rule-based" {
-            patientMatcher = new RuleBasedPatientMatching();
+    private final map<pm:PatientMatcher> patientMatcherMap = {
+        "rulebased" : new pm:RuleBasedPatientMatcher()
+    };
+    private final pm:PatientMatcher patientMatcher;
+    public function init() returns error? {
+        if (self.patientMatcherMap.hasKey(algoType)) {
+            self.patientMatcher = <pm:PatientMatcher>self.patientMatcherMap[algoType];
         } else {
-            return error("Error reading config.json file"); 
-        }
-        return patientMatcher.matchPatients(patientMatchingRequest.newPatient);
-
+            self.patientMatcher = <pm:PatientMatcher>self.patientMatcherMap[DEFAULT_ALGO];
+        } 
     }
 
-    resource function post verifypatient(@http:Payload PatientCheckRequest patientCheckRequest) returns boolean|error {
-        PatientMatcher patientMatcher = new RuleBasedPatientMatching();
-        return patientMatcher.verifyPatient(patientCheckRequest.newPatient ,patientCheckRequest.oldPatient);
+    # Post method to match patients
+    #
+    # + patientMatchRequest - Patient Match Request Record
+    # + return - Matching Result or Error
+    resource isolated function post 'match(@http:Payload pm:PatientMatchRequest patientMatchRequest) returns error|http:Response {
+        pm:ConfigurationRecord?|error config = getConfigurations();
+        if config is error || config is () {
+            return self.patientMatcher.matchPatients(patientMatchRequest); 
+        }
+        return self.patientMatcher.matchPatients(patientMatchRequest,config); 
     }
 }
 
-# Description
-#
-# + newPatient - Field Description
-public type PatientMatchingRequest record {
-    r4:Patient newPatient;
-};
-
-# Description
-#
-# + newPatient - Field Description  
-# + oldPatient - Field Description
-public type PatientCheckRequest record {
-    r4:Patient newPatient;
-    r4:Patient oldPatient;
-};
-
-# Description
-# + return - Return Value Description
-public function getAlgoType() returns json|error {
-    json|io:Error readfile = io:fileReadJson("config.json");
-    string algotype;
-        
-    if readfile is io:Error {
-        algotype = "rule-based";
-
-    } else {
-        algotype =  check readfile.algorithm;
+# Method to get configurations from config.json file
+# + return - Configurations as a json
+public isolated function getConfigurations() returns pm:ConfigurationRecord?|error {
+    json|io:Error configFile = io:fileReadJson("config.json");
+    if configFile is json {
+        return <pm:ConfigurationRecord> {
+        "fhirpaths" : check configFile.fhirpaths,
+        "masterPatientIndexTableName" : check configFile.masterPatientIndexTableName,
+        "masterPatientIndexColumnNames" : check configFile.masterPatientIndexColumnNames,
+        "masterPatientIndexHost" : check configFile.masterPatientIndexHost,
+        "masterPatientIndexPort" : check configFile.masterPatientIndexPort,
+        "masterPatientIndexDb" : check configFile.masterPatientIndexDb,
+        "masterPatientIndexDbUser" : check configFile.masterPatientIndexDbUser,
+        "masterPatientIndexDbPassword" : check configFile.masterPatientIndexDbPassword
+        };
     }
-    
-    return algotype;
-
+    return ();
 }

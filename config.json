@@ -1,6 +1,10 @@
 {
-    "fhirpaths": ["Patient.name.family", "Patient.gender", "Patient.birthDate", "Patient.name.given"],
-    "weights" : [1.0,1.0,1.0,1.0],
-    "threshold" : 4.0,
-    "algorithm" : "rule-based"
+    "fhirpaths": ["Patient.name.given[1]", "Patient.name.family", "Patient.gender", "Patient.birthDate"],
+    "masterPatientIndexColumnNames": ["FirstName", "LastName", "gender", "dob"],
+    "masterPatientIndexTableName": "patient",
+    "masterPatientIndexHost": "localhost",
+    "masterPatientIndexPort": 3306,
+    "masterPatientIndexDb": "patient_db",
+    "masterPatientIndexDbUser": "root",
+    "masterPatientIndexDbPassword": "0207THEnu$an"
 }
