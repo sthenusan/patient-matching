@@ -17,53 +17,59 @@ import ballerina/io;
 # bound to port `9090`.
 service /fhir on new http:Listener(9090) {
 
-    resource function post patientmatch(@http:Payload PatientMatchingRequest patientMatchingRequest) returns MatchingResult|error {
+    # Post method to match the patient
+    #
+    # + patientMatchingRequest - Patient Matching Record
+    # + return - Matching Result or Error
+    resource function post patientmatch(@http:Payload PatientMatchingRequest patientMatchingRequest) returns error|http:Response {
         PatientMatcher patientMatcher;
 
-        if getAlgoType() is "rule-based" {
+        if getAlgoType() is "rulebased" {
             patientMatcher = new RuleBasedPatientMatching();
         } else {
-            return error("Error reading config.json file"); 
+            return createPatientMatchingError("Error reading configurations from config.json file"); 
         }
         return patientMatcher.matchPatients(patientMatchingRequest.newPatient);
 
     }
 
-    resource function post verifypatient(@http:Payload PatientCheckRequest patientCheckRequest) returns boolean|error {
+    # Post method to verify wheather two patients are same or not
+    #
+    # + patientCheckRequest - Patient Verify Request Record
+    # + return - True if both patients are same or False if not
+    resource function post verifypatient(@http:Payload PatientVerifyRequest patientCheckRequest) returns error|http:Response {
         PatientMatcher patientMatcher = new RuleBasedPatientMatching();
         return patientMatcher.verifyPatient(patientCheckRequest.newPatient ,patientCheckRequest.oldPatient);
     }
 }
 
-# Description
+# Record to hold the patient details to be matched
 #
-# + newPatient - Field Description
+# + newPatient - New patient to be matched
 public type PatientMatchingRequest record {
     r4:Patient newPatient;
 };
 
-# Description
+# Record to hold the patient details to be verified
 #
-# + newPatient - Field Description  
-# + oldPatient - Field Description
-public type PatientCheckRequest record {
+# + newPatient - Patient to be verified  
+# + oldPatient - Patient to be verified against
+public type PatientVerifyRequest record {
     r4:Patient newPatient;
     r4:Patient oldPatient;
 };
 
-# Description
-# + return - Return Value Description
-public function getAlgoType() returns json|error {
+# Function to get the algorithm type from the config.json file
+# + return - json which contains the algorithm type or error
+public isolated function getAlgoType() returns json|error {
     json|io:Error readfile = io:fileReadJson("config.json");
-    string algotype;
-        
+    string algotype;      
     if readfile is io:Error {
-        algotype = "rule-based";
+        algotype = "rulebased";
 
     } else {
         algotype =  check readfile.algorithm;
     }
-    
     return algotype;
 
 }

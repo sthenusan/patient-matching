@@ -2,7 +2,24 @@
 org = "thenusan"
 name = "patient_matching_usecase"
 version = "0.1.0"
-distribution = "2201.4.1"
+distribution = "2201.5.0"
 
 [build-options]
 observabilityIncluded = true
+
+[[platform.java11.dependency]]
+path = "/usr/bin/java"
+
+[[platform.java11.dependency]]
+groupId = "mysql"
+artifactId = "mysql-connector-java"
+version = "8.0.20"
+
+[persist]
+datastore = "mysql"
+module = "patient_matching_usecase"
+
+[[platform.java11.dependency]]
+groupId = "io.ballerina.stdlib"
+artifactId = "persist-native"
+version = "0.3.1"
