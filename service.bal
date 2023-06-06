@@ -62,7 +62,7 @@ public type PatientVerifyRequest record {
 # Function to get the algorithm type from the config.json file
 # + return - json which contains the algorithm type or error
 public isolated function getAlgoType() returns json|error {
-    json|io:Error readfile = io:fileReadJson("config.json");
+    json|io:Error readfile = io:fileReadJson("patientMatcherConfig.json");
     string algotype;      
     if readfile is io:Error {
         algotype = "rulebased";

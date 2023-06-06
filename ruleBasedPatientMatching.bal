@@ -50,7 +50,7 @@ public class RuleBasedPatientMatching {
         http:Response response = new;
         
         if rulesRecord is error {
-            return createPatientMatchingError("Error in getting rules from config.json file : " + rulesRecord.message());
+            return createPatientMatchingError("Error in getting rules from patientMatcherConfig.json file : " + rulesRecord.message());
         }
 
         int score = 0;
@@ -118,7 +118,7 @@ public class RuleBasedPatientMatching {
 
         MPIDbConfig|error dbConfig = self.getMPIConfigData();
         if dbConfig is error {
-            return createPatientMatchingError("Error in getting database configuration details from config.json file : " + dbConfig.message());
+            return createPatientMatchingError("Error in getting database configuration details from patientMatcherConfig.json file : " + dbConfig.message());
         }
         mysql:Client dbClient = check new (dbConfig.host, dbConfig.username, dbConfig.password, dbConfig.database, dbConfig.port);
         return dbClient;
@@ -153,7 +153,7 @@ public class RuleBasedPatientMatching {
         }
         error|string qry = self.getSQLQuery(patient,rulesTable);
         if qry is error {
-            return createPatientMatchingError("Error in getting SQL query from config.json file : " + qry.message());
+            return createPatientMatchingError("Error in getting SQL query from patientMatcherConfig.json file : " + qry.message());
         }
         sql:ParameterizedQuery queryString = ``;
         queryString.strings = [qry];
@@ -162,10 +162,10 @@ public class RuleBasedPatientMatching {
     }
 
     isolated function getMPIConfigData() returns MPIDbConfig|error {
-        json|io:Error readfile = io:fileReadJson("config.json");
+        json|io:Error readfile = io:fileReadJson("patientMatcherConfig.json");
 
         if readfile is io:Error {
-            return createPatientMatchingError("Configuration error in reading config.json file : " + readfile.toString());
+            return createPatientMatchingError("Configuration error in reading patientMatcherConfig.json file : " + readfile.toString());
 
         } else {
             json|error masterPatientIndexHost = readfile.rulebased.masterPatientIndexHost;
@@ -191,17 +191,17 @@ public class RuleBasedPatientMatching {
     }
 
     isolated function getSQLQuery(r4:Patient patient, RulesRecord rulesTable) returns (error|string) {
-        json|io:Error readfile = io:fileReadJson("config.json");
+        json|io:Error readfile = io:fileReadJson("patientMatcherConfig.json");
 
         if readfile is io:Error {
-            return createPatientMatchingError("Configuration error in reading config.json file : " + readfile.toString());
+            return createPatientMatchingError("Configuration error in reading patientMatcherConfig.json file : " + readfile.toString());
 
         } else {
             json|error MPIColumnNames = readfile.rulebased.MPIColumnNames;
             json|error MPITableName = readfile.rulebased.MPITableName;
 
             if MPIColumnNames is error || MPITableName is error {
-                return createPatientMatchingError("Configiration error in reading MPI Column Names and Table Name from the config.json file");
+                return createPatientMatchingError("Configiration error in reading MPI Column Names and Table Name from the patientMatcherConfig.json file");
             } else {
                 json[] parameters = <json[]>MPIColumnNames;
                 string tableName = <string>MPITableName;
@@ -253,16 +253,16 @@ public class RuleBasedPatientMatching {
     }
 
     isolated function getPatientMatcherRuleData() returns RulesRecord|error {
-        json|io:Error readfile = io:fileReadJson("config.json");
+        json|io:Error readfile = io:fileReadJson("patientMatcherConfig.json");
 
         if readfile is io:Error {
-            return createPatientMatchingError("Configuration error in reading config.json file : " + readfile.message());
+            return createPatientMatchingError("Configuration error in reading patientMatcherConfig.json file : " + readfile.message());
 
         } else {
             json|error fhirpaths = readfile.rulebased.fhirpaths;
 
             if fhirpaths is error {
-                return createPatientMatchingError("Configuration error in reading fhirpaths from config.json file");
+                return createPatientMatchingError("Configuration error in reading fhirpaths from patientMatcherConfig.json file");
             } else {
                 string[] paths = [];
                 json[] intermediateArray = <json[]>fhirpaths;
