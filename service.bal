@@ -10,8 +10,9 @@
 // associated services.
 
 import ballerina/http;
+import ballerina/io;    
 import ballerinax/health.fhir.r4;
-import ballerina/io;
+import ballerinax/health.fhir.r4utils as utils;
 
 # A service representing a network-accessible API for the Patient-matching evaluation.
 # bound to port `9090`.
@@ -22,14 +23,15 @@ service /fhir on new http:Listener(9090) {
     # + patientMatchingRequest - Patient Matching Record
     # + return - Matching Result or Error
     resource function post patientmatch(@http:Payload PatientMatchingRequest patientMatchingRequest) returns error|http:Response {
-        PatientMatcher patientMatcher;
-
-        if getAlgoType() is "rulebased" {
-            patientMatcher = new RuleBasedPatientMatching();
-        } else {
-            return createPatientMatchingError("Error reading configurations from config.json file"); 
+        json|error config = getConfigurationFile();
+        if (config is error) {
+            return utils:createPatientMatchingError("Could not find the configuration file");
         }
-        return patientMatcher.matchPatients(patientMatchingRequest.newPatient);
+        utils:PatientMatcher|error patientMatcher = utils:getPatientMatcher(config);
+        if (patientMatcher is error) {
+            return utils:createPatientMatchingError("Could not find the type of the matching algorithm in the configuration file");
+        }
+        return patientMatcher.matchPatients(patientMatchingRequest.newPatient,config);
 
     }
 
@@ -38,8 +40,15 @@ service /fhir on new http:Listener(9090) {
     # + patientCheckRequest - Patient Verify Request Record
     # + return - True if both patients are same or False if not
     resource function post verifypatient(@http:Payload PatientVerifyRequest patientCheckRequest) returns error|http:Response {
-        PatientMatcher patientMatcher = new RuleBasedPatientMatching();
-        return patientMatcher.verifyPatient(patientCheckRequest.newPatient ,patientCheckRequest.oldPatient);
+        json|error config = getConfigurationFile();
+        if (config is error) {
+            return utils:createPatientMatchingError("Could not find the configuration file");
+        }
+        utils:PatientMatcher|error patientMatcher = utils:getPatientMatcher(config);
+        if (patientMatcher is error) {
+            return utils:createPatientMatchingError("Could not find the type of the matching algorithm in the configuration file");
+        }
+        return patientMatcher.verifyPatient(patientCheckRequest.newPatient, patientCheckRequest.oldPatient,config);
     }
 }
 
@@ -59,17 +68,12 @@ public type PatientVerifyRequest record {
     r4:Patient oldPatient;
 };
 
-# Function to get the algorithm type from the config.json file
-# + return - json which contains the algorithm type or error
-public isolated function getAlgoType() returns json|error {
-    json|io:Error readfile = io:fileReadJson("patientMatcherConfig.json");
-    string algotype;      
-    if readfile is io:Error {
-        algotype = "rulebased";
+public isolated function getConfigurationFile() returns json|error {
+    json|io:Error configFilePath = io:fileReadJson("patientMatcherConfig.json");
 
+    if (configFilePath is json) {
+        return configFilePath;
     } else {
-        algotype =  check readfile.algorithm;
+        return utils:createPatientMatchingError("Could not find the configuration file");
     }
-    return algotype;
-
 }

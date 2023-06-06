@@ -23,3 +23,9 @@ module = "patient_matching_usecase"
 groupId = "io.ballerina.stdlib"
 artifactId = "persist-native"
 version = "0.3.1"
+
+[[dependency]]
+org = "ballerinax"
+name = "health.fhir.r4utils"
+version = "1.0.3-snapshot"
+repository = "local"
