@@ -12,8 +12,7 @@
 import ballerina/http;
 import ballerina/io;    
 import ballerinax/health.fhir.r4;
-import ballerinax/health.fhir.r4utils as utils;
-
+import ballerinax/health.fhir.r4utils.patientmatching as pm;
 # A service representing a network-accessible API for the Patient-matching evaluation.
 # bound to port `9090`.
 service /fhir on new http:Listener(9090) {
@@ -23,15 +22,12 @@ service /fhir on new http:Listener(9090) {
     # + patientMatchingRequest - Patient Matching Record
     # + return - Matching Result or Error
     resource function post patientmatch(@http:Payload PatientMatchingRequest patientMatchingRequest) returns error|http:Response {
-        json|error config = getConfigurationFile();
+        json|error config = getConfigurations();
         if (config is error) {
-            return utils:createPatientMatchingError("Could not find the configuration file");
+            return pm:createPatientMatchingError("Could not find the configuration file");
         }
-        utils:PatientMatcher|error patientMatcher = utils:getPatientMatcher(config);
-        if (patientMatcher is error) {
-            return utils:createPatientMatchingError("Could not find the type of the matching algorithm in the configuration file");
-        }
-        return patientMatcher.matchPatients(patientMatchingRequest.newPatient,config);
+        pm:PatientMatcher patientMatcher = pm:patientMatcherRegistry.getPatientMatcherImpl();
+        return patientMatcher.matchPatients(patientMatchingRequest.sourcePatient,config);
 
     }
 
@@ -40,40 +36,37 @@ service /fhir on new http:Listener(9090) {
     # + patientCheckRequest - Patient Verify Request Record
     # + return - True if both patients are same or False if not
     resource function post verifypatient(@http:Payload PatientVerifyRequest patientCheckRequest) returns error|http:Response {
-        json|error config = getConfigurationFile();
+        json|error config = getConfigurations();
         if (config is error) {
-            return utils:createPatientMatchingError("Could not find the configuration file");
+            return pm:createPatientMatchingError("Could not find the configuration file");
         }
-        utils:PatientMatcher|error patientMatcher = utils:getPatientMatcher(config);
-        if (patientMatcher is error) {
-            return utils:createPatientMatchingError("Could not find the type of the matching algorithm in the configuration file");
-        }
-        return patientMatcher.verifyPatient(patientCheckRequest.newPatient, patientCheckRequest.oldPatient,config);
+        pm:PatientMatcher patientMatcher = pm:patientMatcherRegistry.getPatientMatcherImpl();
+        return patientMatcher.verifyPatient(patientCheckRequest.sourcePatient, patientCheckRequest.targetPatient,config);
     }
 }
 
 # Record to hold the patient details to be matched
 #
-# + newPatient - New patient to be matched
+# + sourcePatient - New patient to be matched
 public type PatientMatchingRequest record {
-    r4:Patient newPatient;
+    r4:Patient sourcePatient;
 };
 
 # Record to hold the patient details to be verified
 #
-# + newPatient - Patient to be verified  
-# + oldPatient - Patient to be verified against
+# + sourcePatient - Patient to be verified  
+# + targetPatient - Patient to be verified against
 public type PatientVerifyRequest record {
-    r4:Patient newPatient;
-    r4:Patient oldPatient;
+    r4:Patient sourcePatient;
+    r4:Patient targetPatient;
 };
 
-public isolated function getConfigurationFile() returns json|error {
-    json|io:Error configFilePath = io:fileReadJson("patientMatcherConfig.json");
+public isolated function getConfigurations() returns json|error {
+    json|io:Error configFile = io:fileReadJson("patientMatcherConfig.json");
 
-    if (configFilePath is json) {
-        return configFilePath;
+    if (configFile is json) {
+        return configFile;
     } else {
-        return utils:createPatientMatchingError("Could not find the configuration file");
+        return pm:createPatientMatchingError("Could not find the configuration file");
     }
 }

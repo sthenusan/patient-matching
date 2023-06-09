@@ -26,6 +26,12 @@ version = "0.3.1"
 
 [[dependency]]
 org = "ballerinax"
-name = "health.fhir.r4utils"
-version = "1.0.3-snapshot"
+name = "health.fhir.r4utils.fhirpath"
+version = "1.0.2"
+repository = "local"
+
+[[dependency]]
+org = "ballerinax"
+name = "health.fhir.r4utils.patientmatching"
+version = "0.1.0"
 repository = "local"

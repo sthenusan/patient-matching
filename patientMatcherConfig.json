@@ -1,5 +1,4 @@
 {
-    "algorithm": "rulebased",
     "rulebased": {
         "fhirpaths": ["Patient.name.given[1]","Patient.name.family","Patient.gender","Patient.birthDate"],
         "MPIColumnNames":["FirstName","LastName","gender","dob"],
