@@ -21,13 +21,14 @@ service /fhir on new http:Listener(9090) {
     #
     # + patientMatchingRequest - Patient Matching Record
     # + return - Matching Result or Error
-    resource function post patientmatch(@http:Payload PatientMatchingRequest patientMatchingRequest) returns error|http:Response {
+    isolated resource function post patientmatch(@http:Payload PatientMatchingRequest patientMatchingRequest) returns error|http:Response {
         json|error config = getConfigurations();
         if (config is error) {
             return pm:createPatientMatchingError("Could not find the configuration file");
         }
-        pm:PatientMatcher patientMatcher = pm:patientMatcherRegistry.getPatientMatcherImpl();
-        return patientMatcher.matchPatients(patientMatchingRequest.sourcePatient,config);
+        pm:PatientMatcherRecord patientMatcher = pm:patientMatcherRegistry.getPatientMatcherImpl();
+        pm:MatchPatients matchfunc = patientMatcher.matchPatients;
+        return matchfunc(patientMatchingRequest.sourcePatient,config);
 
     }
 
@@ -35,13 +36,15 @@ service /fhir on new http:Listener(9090) {
     #
     # + patientCheckRequest - Patient Verify Request Record
     # + return - True if both patients are same or False if not
-    resource function post verifypatient(@http:Payload PatientVerifyRequest patientCheckRequest) returns error|http:Response {
+    isolated resource function post verifypatient(@http:Payload PatientVerifyRequest patientCheckRequest) returns error|http:Response {
         json|error config = getConfigurations();
         if (config is error) {
             return pm:createPatientMatchingError("Could not find the configuration file");
         }
-        pm:PatientMatcher patientMatcher = pm:patientMatcherRegistry.getPatientMatcherImpl();
-        return patientMatcher.verifyPatient(patientCheckRequest.sourcePatient, patientCheckRequest.targetPatient,config);
+        pm:patientMatcherRegistry.registerPatientMatcherImpl(newPatientMatcher);
+        pm:PatientMatcherRecord patientMatcher = pm:patientMatcherRegistry.getPatientMatcherImpl();
+        pm:VerifyPatient verifyfunc = patientMatcher.verifyPatient;
+        return verifyfunc(patientCheckRequest.sourcePatient, patientCheckRequest.targetPatient,config);
     }
 }
 
