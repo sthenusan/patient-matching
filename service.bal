@@ -50,16 +50,19 @@ isolated service /patient on new http:Listener(9090) {
 public isolated function getConfigurations() returns pm:ConfigurationRecord?|error {
     json|io:Error configFile = io:fileReadJson("config.json");
     if configFile is json {
-        return <pm:ConfigurationRecord> {
+
+        pm:ConfigurationRecord co = {
         "fhirpaths" : check configFile.fhirpaths,
-        "masterPatientIndexTableName" : check configFile.masterPatientIndexTableName,
-        "masterPatientIndexColumnNames" : check configFile.masterPatientIndexColumnNames,
-        "masterPatientIndexHost" : check configFile.masterPatientIndexHost,
-        "masterPatientIndexPort" : check configFile.masterPatientIndexPort,
-        "masterPatientIndexDb" : check configFile.masterPatientIndexDb,
-        "masterPatientIndexDbUser" : check configFile.masterPatientIndexDbUser,
-        "masterPatientIndexDbPassword" : check configFile.masterPatientIndexDbPassword
+        "masterPatientIndexTableName" : check (check configFile.masterPatientIndexTableName).cloneWithType(string),
+        "masterPatientIndexColumnNames" :  check configFile.masterPatientIndexColumnNames,
+        "masterPatientIndexHost" : check (check configFile.masterPatientIndexHost).cloneWithType(string),
+        "masterPatientIndexPort" : check (check configFile.masterPatientIndexPort).cloneWithType(int),
+        "masterPatientIndexDb" : check (check configFile.masterPatientIndexDb).cloneWithType(string),
+        "masterPatientIndexDbUser" : check (check configFile.masterPatientIndexDbUser).cloneWithType(string),
+        "masterPatientIndexDbPassword" : check (check configFile.masterPatientIndexDbPassword).cloneWithType(string)
         };
+        
+        return co;
     }
     return ();
 }
