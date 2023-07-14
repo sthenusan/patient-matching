@@ -50,18 +50,20 @@ isolated service /patient on new http:Listener(9090) {
 public isolated function getConfigurations() returns pm:ConfigurationRecord?|error {
     json|io:Error configFile = io:fileReadJson("config.json");
     if configFile is json {
-
+        json fhirpaths = check configFile.fhirpaths;
+        string[] fhirpathArray = from json path in <json[]>fhirpaths select path.toString();
+        json masterPatientIndexColumnNames = check configFile.masterPatientIndexColumnNames;
+        string[] ColumnNames = from json columnNames in <json[]>masterPatientIndexColumnNames select columnNames.toString();
         pm:ConfigurationRecord co = {
-        "fhirpaths" : check configFile.fhirpaths,
+        "fhirpaths" :fhirpathArray,
         "masterPatientIndexTableName" : check (check configFile.masterPatientIndexTableName).cloneWithType(string),
-        "masterPatientIndexColumnNames" :  check configFile.masterPatientIndexColumnNames,
+        "masterPatientIndexColumnNames" :  ColumnNames,
         "masterPatientIndexHost" : check (check configFile.masterPatientIndexHost).cloneWithType(string),
         "masterPatientIndexPort" : check (check configFile.masterPatientIndexPort).cloneWithType(int),
         "masterPatientIndexDb" : check (check configFile.masterPatientIndexDb).cloneWithType(string),
         "masterPatientIndexDbUser" : check (check configFile.masterPatientIndexDbUser).cloneWithType(string),
         "masterPatientIndexDbPassword" : check (check configFile.masterPatientIndexDbPassword).cloneWithType(string)
         };
-        
         return co;
     }
     return ();
