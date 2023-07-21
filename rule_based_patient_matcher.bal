@@ -207,7 +207,7 @@ public isolated class RuleBasedPatientMatcher {
     }
 
     isolated function getPatientMatcherRuleData(ConfigurationRecord config) returns RulesRecord|error {
-        string[]? fhirpaths = config?.fhirpaths;
+        string[]? fhirpaths = config.fhirpaths;
         if fhirpaths is () {
             return throwFHIRError("Error; FHIRPath rules can not be null in the config.json file.", cause = fhirpaths);
         }
