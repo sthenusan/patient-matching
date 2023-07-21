@@ -1,3 +1,0 @@
-[[container.copy.files]]
-sourceFile="./config.json"
-target="/home/ballerina/config.json"
