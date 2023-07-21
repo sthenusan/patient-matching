@@ -33,14 +33,14 @@ isolated service /patient on new http:Listener(9090) {
 
     # Post method to match patients
     #
-    # + patientMatchRequest - Patient Match Request Record
+    # + patientMatchRequestData - Patient Match Request Data Record
     # + return - Matching Result or Error
-    resource isolated function post 'match(@http:Payload PatientMatchRequest patientMatchRequest) returns error|http:Response {
+    resource isolated function post 'match(@http:Payload PatientMatchRequestData patientMatchRequestData) returns error|http:Response {
         ConfigurationRecord?|error config = getConfigurations();
         if config is error || config is () {
-            return self.patientMatcher.matchPatients(patientMatchRequest); 
+            return self.patientMatcher.matchPatients(patientMatchRequestData); 
         }
-        return self.patientMatcher.matchPatients(patientMatchRequest,config); 
+        return self.patientMatcher.matchPatients(patientMatchRequestData,config); 
     }
 }
 
@@ -49,16 +49,21 @@ isolated service /patient on new http:Listener(9090) {
 public isolated function getConfigurations() returns ConfigurationRecord?|error {
     json|io:Error configFile = io:fileReadJson("config.json");
     if configFile is json {
-        return <ConfigurationRecord> {
-        "fhirpaths" : check configFile.fhirpaths,
-        "masterPatientIndexTableName" : check configFile.masterPatientIndexTableName,
-        "masterPatientIndexColumnNames" : check configFile.masterPatientIndexColumnNames,
-        "masterPatientIndexHost" : check configFile.masterPatientIndexHost,
-        "masterPatientIndexPort" : check configFile.masterPatientIndexPort,
-        "masterPatientIndexDb" : check configFile.masterPatientIndexDb,
-        "masterPatientIndexDbUser" : check configFile.masterPatientIndexDbUser,
-        "masterPatientIndexDbPassword" : check configFile.masterPatientIndexDbPassword
+        json fhirpaths = check configFile.fhirpaths;
+        string[] fhirpathArray = from json path in <json[]>fhirpaths select path.toString();
+        json masterPatientIndexColumnNames = check configFile.masterPatientIndexColumnNames;
+        string[] ColumnNames = from json columnNames in <json[]>masterPatientIndexColumnNames select columnNames.toString();
+        ConfigurationRecord co = {
+        "fhirpaths" :fhirpathArray,
+        "masterPatientIndexTableName" : check (check configFile.masterPatientIndexTableName).cloneWithType(string),
+        "masterPatientIndexColumnNames" :  ColumnNames,
+        "masterPatientIndexHost" : check (check configFile.masterPatientIndexHost).cloneWithType(string),
+        "masterPatientIndexPort" : check (check configFile.masterPatientIndexPort).cloneWithType(int),
+        "masterPatientIndexDb" : check (check configFile.masterPatientIndexDb).cloneWithType(string),
+        "masterPatientIndexDbUser" : check (check configFile.masterPatientIndexDbUser).cloneWithType(string),
+        "masterPatientIndexDbPassword" : check (check configFile.masterPatientIndexDbPassword).cloneWithType(string)
         };
+        return co;
     }
     return ();
 }

@@ -18,7 +18,7 @@ import ballerina/http;
 import ballerina/sql;
 import ballerina/time;
 import ballerinax/health.fhir.r4;
-import ballerinax/health.fhir.r4utils as fhirpath;
+import ballerinax/health.fhir.r4utils.fhirpath as fhirpath;
 import ballerinax/mysql;
 
 const SEARCH_SET = "searchset";
@@ -48,40 +48,28 @@ public type MPIDbConfig record {|
 public isolated class RuleBasedPatientMatcher {
     *PatientMatcher;
 
-    public isolated function matchPatients(PatientMatchRequest patientMatchRequest, ConfigurationRecord? config) returns error|http:Response {
-        json[] parametersArray = patientMatchRequest.'parameter;
+    public isolated function matchPatients(PatientMatchRequestData patientMatchRequestData, ConfigurationRecord? config) returns error|http:Response {
+        json[] parametersArray = patientMatchRequestData.'parameter;
         r4:Patient|error sourcePatient = (check parametersArray[0].'resource).cloneWithType();
-        string|error strPatientCount = (check parametersArray[1].valueInteger).cloneWithType();
-        string|error strOnlyCertainMatches = (check parametersArray[2].valueBoolean).cloneWithType();
         if sourcePatient is error {
-            string errorMessage = "Error occurred while getting the source patient from the request.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, sourcePatient.detail().toString(), cause = sourcePatient,
-                        statuscode = http:STATUS_BAD_REQUEST);
+            return throwFHIRError("Error occurred while getting the source patient from the request.", cause = sourcePatient);
         }
+        string|error strPatientCount = (check parametersArray[1].valueInteger).cloneWithType();
         if strPatientCount is error {
-            string errorMessage = "Error occurred while getting the expected patient count from the request.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, strPatientCount.detail().toString(), cause = strPatientCount,
-                        statuscode = http:STATUS_BAD_REQUEST);
+            return throwFHIRError("Error occurred while getting the expected patient count from the request.", cause = strPatientCount);
         }
+        string|error strOnlyCertainMatches = (check parametersArray[2].valueBoolean).cloneWithType();
         if strOnlyCertainMatches is error {
-            string errorMessage = "Error occurred while getting the OnlyCertainMatches boolean flag from the request.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, strOnlyCertainMatches.detail().toString(), cause = strOnlyCertainMatches,
-                        statuscode = http:STATUS_BAD_REQUEST);
+            return throwFHIRError("Error occurred while getting the OnlyCertainMatches boolean flag from the request.", cause = strOnlyCertainMatches);
         }
-
         int|error patientCount = int:fromString(strPatientCount);
-        boolean|error onlyCertainMatches = boolean:fromString(strOnlyCertainMatches);
         if patientCount is error {
-            string errorMessage = "Error occurred while casting the patient count string to integer.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, patientCount.detail().toString(), cause = patientCount,
-                        statuscode = http:STATUS_BAD_REQUEST);
+            return throwFHIRError("Error occurred while casting the patient count string to integer.", cause = patientCount);
         }
+        boolean|error onlyCertainMatches = boolean:fromString(strOnlyCertainMatches);
         if onlyCertainMatches is error {
-            string errorMessage = "Error occurred while casting the onlyCertainMatches flag from string to boolean.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, onlyCertainMatches.detail().toString(), cause = onlyCertainMatches,
-                        statuscode = http:STATUS_BAD_REQUEST);
+            return throwFHIRError("Error occurred while casting the onlyCertainMatches flag from string to boolean.", cause = onlyCertainMatches);
         }
-
         r4:BundleEntry[]|error? patientArray = self.getMatchingPatients(<r4:Patient>sourcePatient, config ?: {});
         if patientArray is () {
             http:Response response = new;
@@ -89,88 +77,59 @@ public isolated class RuleBasedPatientMatcher {
             return response;
         }
         if patientArray is error {
-            string errorMessage = "Error occurred while getting the matching patients from MPI.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, patientArray.detail().toString(), cause = patientArray,
-                        statuscode = http:STATUS_BAD_REQUEST);
+            return throwFHIRError("Error occurred while getting the matching patients from MPI.", cause = patientArray);
         }
         http:Response response = new;
         if onlyCertainMatches is true && patientArray.length() > 1 {
             response.setJsonPayload("Multiple matching patients found while onlyCertainMatches flag is true");
         }
-        if patientArray.length() < patientCount {
-            r4:Bundle bundle = {
-                'type: SEARCH_SET,
-                total: patientArray.length(),
-                'entry: patientArray,
-                timestamp: time:utcNow().toString()
-            };
-            response.setJsonPayload(bundle.toJson());
-        } else {
+        if patientArray.length() >= patientCount {
             patientArray.setLength(patientCount);
-            r4:Bundle bundle = {
-                'type: SEARCH_SET,
-                total: patientArray.length(),
-                'entry: patientArray,
-                timestamp: time:utcNow().toString()
-            };
-            response.setJsonPayload(bundle.toJson());
         }
+        r4:Bundle bundle = {
+            'type: SEARCH_SET,
+            total: patientArray.length(),
+            entry: patientArray,
+            timestamp: time:utcNow().toString()
+        };
+        response.setJsonPayload(bundle.toJson());
         return response;
     }
 
     isolated function getMpiDbClient(ConfigurationRecord config) returns sql:Client|error {
         MPIDbConfig|error dbConfig = self.getMPIConfigData(config);
         if dbConfig is error {
-            string errorMessage = "Error occurred while getting the configurations details for the database client from config.json file.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, dbConfig.detail().toString(), cause = dbConfig,
-                        statuscode = http:STATUS_BAD_REQUEST);
+            return throwFHIRError("Error occurred while getting the configurations details for the database client from config.json file.", cause = dbConfig);
         }
         mysql:Client dbClient = check new (dbConfig.host, dbConfig.username, dbConfig.password, dbConfig.database, dbConfig.port);
         return dbClient;
     }
 
     isolated function getMatchingPatients(r4:Patient patient, ConfigurationRecord config) returns error|r4:BundleEntry[] {
-        stream<record {}, sql:Error?>|error dbPatientStream = self.getMPIData(patient, check self.getPatientMatcherRuleData(config), config);
+        stream<map<anydata>, sql:Error?>|error dbPatientStream = self.getMPIData(patient, check self.getPatientMatcherRuleData(config), config);
         if dbPatientStream is error {
-            string errorMessage = "Error occurred while getting the matching patients from MPI.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, dbPatientStream.detail().toString(), cause = dbPatientStream,
-                        statuscode = http:STATUS_NOT_FOUND);
+            return throwFHIRError("Error occurred while getting the matching patients from MPI.", cause = dbPatientStream);
         }
-        r4:BundleEntry[] patients = [];
-        record {|anydata...;|}[]|sql:Error patientArray = from record {} patientRecords in dbPatientStream
+        map<anydata>[]|sql:Error patientArray = from map<anydata> patientRecords in dbPatientStream
             select patientRecords;
         if patientArray is sql:Error {
-            string errorMessage = "Error occurred while getting the matching patients from MPI.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, patientArray.detail().toString(), cause = patientArray,
-                        statuscode = http:STATUS_NOT_FOUND);
+            return throwFHIRError("Error occurred while getting the matching patients from MPI.", cause = patientArray);
         }
-        foreach int i in 0 ... patientArray.length()-1 {
-            r4:BundleEntrySearch bundleEntrySearch = {
-                mode: "match",
-                score: 1.0
-            };
-            r4:BundleEntry bundleEntry = {
-                'resource: patientArray[i],
-                search: bundleEntrySearch
-
-            };
-            patients.push(bundleEntry);
-        }
-        return patients;
+        r4:BundleEntrySearch search = {
+            mode: "match",
+            score: 1.0
+        };
+        return from var 'resource in patientArray select {'resource, search};
     }
 
-    isolated function getMPIData(r4:Patient patient, RulesRecord rulesTable, ConfigurationRecord config) returns stream<record {}, sql:Error?>|error {
+    isolated function getMPIData(r4:Patient patient, RulesRecord rulesTable, ConfigurationRecord config) returns stream<map<anydata>, sql:Error?>|error {
         sql:Client|error dbClient = self.getMpiDbClient(config);
         if dbClient is error {
-            string errorMessage = "Error occurred while getting the database client to access MPI.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, dbClient.detail().toString(), cause = dbClient,
-                        statuscode = http:STATUS_NOT_FOUND);
+            return throwFHIRError("Error occurred while getting the database client to access MPI.", cause = dbClient);
         }
         error|string qry = self.getSQLQuery(patient, rulesTable, config);
         if qry is error {
-            string errorMessage = "Error occurred while generating SQL query.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, qry.detail().toString(), cause = qry,
-                        statuscode = http:STATUS_NOT_FOUND);
+            return throwFHIRError("Error occurred while generating SQL query.", cause = qry);
         }
         sql:ParameterizedQuery queryString = ``;
         queryString.strings = [qry];
@@ -179,63 +138,41 @@ public isolated class RuleBasedPatientMatcher {
     }
 
     isolated function getMPIConfigData(ConfigurationRecord config) returns MPIDbConfig|error {
-        json|error masterPatientIndexHost = config?.masterPatientIndexHost;
-        json|error masterPatientIndexPort = config?.masterPatientIndexPort;
-        json|error masterPatientIndexDb = config?.masterPatientIndexDb;
-        json|error masterPatientIndexDbUser = config?.masterPatientIndexDbUser;
-        json|error masterPatientIndexDbPassword = config?.masterPatientIndexDbPassword;
-        if masterPatientIndexHost is error {
-            string errorMessage = "Error occurred while getting the masterPatientIndexHost from the config.json file.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, masterPatientIndexHost.detail().toString(), cause = masterPatientIndexHost,
-                        statuscode = http:STATUS_BAD_REQUEST);
+        string? host = config?.masterPatientIndexHost;
+        if host is () {
+            return throwFHIRError("Error; masterPatientIndexHost can not be null in the config.json file.", cause = host);
         }
-        if masterPatientIndexPort is error {
-            string errorMessage = "Error occurred while getting the masterPatientIndexPort from the config.json file.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, masterPatientIndexPort.detail().toString(), cause = masterPatientIndexPort,
-                        statuscode = http:STATUS_BAD_REQUEST);
+        int? port = config?.masterPatientIndexPort;
+        if port is () {
+            return throwFHIRError("Error; masterPatientIndexPort can not be null in the config.json file.", cause = port);
         }
-        if masterPatientIndexDb is error {
-            string errorMessage = "Error occurred while getting the masterPatientIndexDb from the config.json file.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, masterPatientIndexDb.detail().toString(), cause = masterPatientIndexDb,
-                        statuscode = http:STATUS_BAD_REQUEST);
+        string? database = config?.masterPatientIndexDb;
+        if database is () {
+            return throwFHIRError("Error; masterPatientIndexDb can not be null in the config.json file.", cause = database);
         }
-        if masterPatientIndexDbUser is error {
-            string errorMessage = "Error occurred while getting the masterPatientIndexDbUser from the config.json file.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, masterPatientIndexDbUser.detail().toString(), cause = masterPatientIndexDbUser,
-                        statuscode = http:STATUS_BAD_REQUEST);
+        string? username = config?.masterPatientIndexDbUser;
+        if username is () {
+            return throwFHIRError("Error; masterPatientIndexDbUser can not be null in the config.json file.", cause = username);
         }
-        if masterPatientIndexDbPassword is error {
-            string errorMessage = "Error occurred while getting the masterPatientIndexDbPassword from the config.json file.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, masterPatientIndexDbPassword.detail().toString(), cause = masterPatientIndexDbPassword,
-                    statuscode = http:STATUS_BAD_REQUEST);
+        string? password = config?.masterPatientIndexDbPassword;
+        if password is () {
+            return throwFHIRError("Error; masterPatientIndexDbPassword can not be null in the config.json file.", cause = password);
         }
-        MPIDbConfig mpiDbConfig = {
-            host: <string>masterPatientIndexHost,
-            port: <int>masterPatientIndexPort,
-            database: <string>masterPatientIndexDb,
-            username: <string>masterPatientIndexDbUser,
-            password: <string>masterPatientIndexDbPassword
-        };
-        return mpiDbConfig;
+        return {host, port, database, username, password};
     }
 
     isolated function getSQLQuery(r4:Patient patient, RulesRecord rulesTable, ConfigurationRecord config) returns (error|string) {
-        json|error MPIColumnNames = config?.masterPatientIndexColumnNames;
-        json|error MPITableName = config?.masterPatientIndexTableName;
-        if MPIColumnNames is error {
-            string errorMessage = "Error occurred while getting the MPIColumnNames from the config.json file.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, MPIColumnNames.detail().toString(), cause = MPIColumnNames,
-                        statuscode = http:STATUS_BAD_REQUEST);
+        string[]? MPIColumnNames = config?.masterPatientIndexColumnNames;
+        if MPIColumnNames is () {
+            return throwFHIRError("Error; MPIColumnNames can not be null in the config.json file.", cause = MPIColumnNames);
         }
-        if MPITableName is error {
-            string errorMessage = "Error occurred while getting the MPITableName from the config.json file.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, MPITableName.detail().toString(), cause = MPITableName,
-                        statuscode = http:STATUS_BAD_REQUEST);
+        string? MPITableName = config?.masterPatientIndexTableName;
+        if MPITableName is () {
+            return throwFHIRError("Error; MPITableName can not be null in the config.json file.", cause = MPITableName);
         }
-        json[] parameters = <json[]>MPIColumnNames;
         string tableName = <string>MPITableName;
-        string query = "SELECT * FROM ";
-        query = string `${query} ${tableName} WHERE `;
+        string query = string `SELECT * FROM  ${tableName} WHERE `;
+        json[] parameters = <json[]>MPIColumnNames;
         int lastIndex = parameters.length() - 1;
         foreach int i in 0 ... parameters.length() {
             string fhirPathRule = rulesTable.fhirpathArray[i];
@@ -246,14 +183,10 @@ public isolated class RuleBasedPatientMatcher {
                 if resultMapLastIndex.hasKey(RESULT) {
                     json resultValue = <json>fhirPathResult.get(RESULT);
                     if resultValue is json[] {
-                        json[] resultJson = <json[]>fhirPathResult.get(RESULT);
-                        json resultFirstElement = resultJson[0];
-                        string queryParam = string `${"\""}${resultFirstElement.toString()}${"\""}`;
-                        query = string ` ${query} ${parameters[i].toString()} = ${queryParam}`;
-                    } else {
-                        string queryParam = string `${"\""}${resultValue.toString()}${"\""}`;
-                        query = string `${query} ${parameters[i].toString()} = ${queryParam}`;
+                        resultValue = resultValue[0];
                     }
+                    string queryParam = string `${"\""}${resultValue.toString()}${"\""}`;
+                    query = string `${query} ${parameters[i].toString()} = ${queryParam}`;
                     break;
                 } else {
                     return fhirpath:createFhirPathError("No result found for the given FHIRPath expression in the patient: ", fhirPathRuleLastIndex);
@@ -261,15 +194,11 @@ public isolated class RuleBasedPatientMatcher {
             }
             if fhirPathResult.hasKey(RESULT) {
                 json resultPath = <json>fhirPathResult.get(RESULT);
-                if fhirPathResult.get(RESULT) is json[] {
-                    json[] resultValue = <json[]>fhirPathResult.get(RESULT);
-                    json resultFirstElement = resultValue[0];
-                    string queryParam = string `${"\""}${resultFirstElement.toString()}${"\""}`;
-                    query = string `${query} ${parameters[i].toString()} = ${queryParam} AND `;
-                } else {
-                    string queryParam = string `${"\""}${resultPath.toString()}${"\""}`;
-                    query = string `${query} ${parameters[i].toString()} = ${queryParam} AND `;
+                if resultPath is json[] {
+                    resultPath = resultPath[0];
                 }
+                string queryParam = string `${"\""}${resultPath.toString()}${"\""}`;
+                query = string `${query} ${parameters[i].toString()} = ${queryParam} AND `;
             } else {
                 return fhirpath:createFhirPathError("No result found for the given FHIRPath expression in the patient: ", fhirPathRule);
             }
@@ -278,24 +207,25 @@ public isolated class RuleBasedPatientMatcher {
     }
 
     isolated function getPatientMatcherRuleData(ConfigurationRecord config) returns RulesRecord|error {
-        json|error fhirpaths = config?.fhirpaths;
-        if fhirpaths is error {
-            string errorMessage = "Error occurred while getting the FHIRPath rules from the config.json file.";
-            return throwFHIRError(errorMessage, r4:ERROR, r4:TRANSIENT_EXCEPTION, fhirpaths.detail().toString(), cause = fhirpaths,
-                        statuscode = http:STATUS_BAD_REQUEST);
+        string[]? fhirpaths = config?.fhirpaths;
+        if fhirpaths is () {
+            return throwFHIRError("Error; FHIRPath rules can not be null in the config.json file.", cause = fhirpaths);
         }
-        return {
-            fhirpathArray: from json path in <json[]>fhirpaths select path.toString()
-        };
+        return {fhirpathArray: from json path in <json[]>fhirpaths select path.toString()};
     }
 };
 
-isolated function throwFHIRError(string message, r4:Severity errServerity, r4:IssueType code, string diagnostic
-            , error cause, int statuscode) returns r4:FHIRError => r4:createFHIRError(message = message, errServerity = errServerity,
-                        code = code, diagnostic = diagnostic, cause = cause, httpStatusCode = statuscode);
+isolated function throwFHIRError(string message, error? cause) returns r4:FHIRError {
+    if cause is error {
+        return r4:createFHIRError(message = message, errServerity = r4:ERROR,
+                        code = r4:TRANSIENT_EXCEPTION, diagnostic = cause.detail().toString(), cause = cause, httpStatusCode = http:STATUS_BAD_REQUEST);
+    }
+    return r4:createFHIRError(message = message, errServerity = r4:ERROR,
+                        code = r4:TRANSIENT_EXCEPTION, httpStatusCode = http:STATUS_BAD_REQUEST);
+}
 
 # Record to hold the patient match request.
-public type PatientMatchRequest record {
+public type PatientMatchRequestData record {
     # resource type name
     string resourceType;
     # resource Id
@@ -307,19 +237,19 @@ public type PatientMatchRequest record {
 # Record to hold the configuration details for the rule based patient matching algorithm.
 public type ConfigurationRecord record {
     # fhirpaths to be used in the patient matching algorithm 
-    json fhirpaths?;
+    string[] fhirpaths?;
     # column names of the MPI table
-    json masterPatientIndexColumnNames?;
+    string[] masterPatientIndexColumnNames?;
     # MPI table name
-    json masterPatientIndexTableName?;
+    string masterPatientIndexTableName?;
     # MPI DB host
-    json masterPatientIndexHost?;
+    string masterPatientIndexHost?;
     # MPI DB port
-    json masterPatientIndexPort?;
+    int masterPatientIndexPort?;
     # MPI DB name
-    json masterPatientIndexDb?;
+    string masterPatientIndexDb?;
     # MPI DB username
-    json masterPatientIndexDbUser?;
+    string masterPatientIndexDbUser?;
     # MPI DB password for the username
-    json masterPatientIndexDbPassword?;
+    string masterPatientIndexDbPassword?;
 };

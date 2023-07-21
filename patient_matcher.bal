@@ -20,8 +20,8 @@ import ballerina/http;
 public type PatientMatcher isolated object {
     # Abstract Method to match patients.
     #
-    # + patientMatchRequest - Parameter Description  
+    # + patientMatchRequestData - Record to hold patient matching request data  
     # + config - Configuration Record for Patient Matching Algorithm
     # + return - Return Matched Patients
-    public isolated function matchPatients(PatientMatchRequest patientMatchRequest, ConfigurationRecord? config = ()) returns error|http:Response;
+    public isolated function matchPatients(PatientMatchRequestData patientMatchRequestData, ConfigurationRecord? config = ()) returns error|http:Response;
 };
